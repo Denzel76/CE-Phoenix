@@ -37,7 +37,7 @@
 
         $actionRecorder = new actionRecorderAdmin('ar_admin_login', null, $username);
 
-        if ($actionRecorder->canPerform()) {
+        if ($actionRecorder->canPerform() || (!defined('MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES'))) {
           $check_query = tep_db_query("SELECT id, user_name, user_password FROM administrators WHERE user_name = '" . tep_db_input($username) . "'");
 
           if (tep_db_num_rows($check_query) == 1) {
@@ -54,8 +54,10 @@
                 'username' => $check['user_name'],
               ];
 
-              $actionRecorder->_user_id = $_SESSION['admin']['id'];
-              $actionRecorder->record();
+              if (defined('MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES')) {
+                $actionRecorder->_user_id = $_SESSION['admin']['id'];
+                $actionRecorder->record();
+              }
 
               if (isset($_SESSION['redirect_origin'])) {
                 $page = $redirect_origin['page'];
@@ -74,10 +76,10 @@
             $messageStack->add(ERROR_INVALID_ADMINISTRATOR, 'error');
           }
         } else {
-          $messageStack->add(sprintf(ERROR_ACTION_RECORDER, (defined('MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES') ? (int)MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES : 5)));
+          $messageStack->add(sprintf(ERROR_ACTION_RECORDER, (int)MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES));
         }
 
-        if (isset($_POST['username'])) {
+        if (isset($_POST['username']) && (defined('MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES'))) {
           $actionRecorder->record(false);
         }
 
