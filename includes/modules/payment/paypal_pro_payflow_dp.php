@@ -31,7 +31,7 @@
       parent::__construct();
 
       if ( empty(self::get_constant(MODULE_PAYMENT_INSTALLED)) || !in_array('paypal_pro_payflow_ec.php', explode(';', MODULE_PAYMENT_INSTALLED)) || !defined('MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_EC_STATUS') || (MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_EC_STATUS != 'True') ) {
-        $this->description = '<div class="secWarning">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_ERROR_EXPRESS_MODULE . '</div>' . $this->description;
+        $this->description = '<div class="alert alert-warning">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_ERROR_EXPRESS_MODULE . '</div>' . $this->description;
 
         $this->enabled = false;
       }
@@ -46,14 +46,14 @@
       }
 
       if ( !function_exists('curl_init') ) {
-        $this->description = '<div class="secWarning">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_ERROR_ADMIN_CURL . '</div>' . $this->description;
+        $this->description = '<div class="alert alert-warning">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_ERROR_ADMIN_CURL . '</div>' . $this->description;
 
         $this->enabled = false;
       }
 
       if ( $this->enabled === true ) {
         if ( !tep_not_null(MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_VENDOR) || !tep_not_null(MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_PASSWORD) ) {
-          $this->description = '<div class="secWarning">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_ERROR_ADMIN_CONFIGURATION . '</div>' . $this->description;
+          $this->description = '<div class="alert alert-warning">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_ERROR_ADMIN_CONFIGURATION . '</div>' . $this->description;
 
           $this->enabled = false;
         }
@@ -84,26 +84,26 @@
       for ($i = $today['year']; $i < $today['year'] + 10; $i++) {
         $year_expires_array[] = ['id' => strftime('%y',mktime(0, 0, 0, 1, 1, $i)), 'text' => strftime('%Y',mktime(0, 0, 0, 1, 1, $i))];
       }
-
-      $content = '<table id="paypal_table_new_card" border="0" width="100%" cellspacing="0" cellpadding="2">'
+      
+      $content = '<table class="table" id="paypal_table_new_card">'
                . '<tr>'
-               . '  <td width="30%">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_OWNER_FIRSTNAME . '</td>'
+               . '  <td class="w-25">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_OWNER_FIRSTNAME . '</td>'
                . '  <td>' . tep_draw_input_field('cc_owner_firstname', $order->billing['firstname']) . '</td>'
                . '</tr>'
                . '<tr>'
-               . '  <td width="30%">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_OWNER_LASTNAME . '</td>'
+               . '  <td class="w-25">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_OWNER_LASTNAME . '</td>'
                . '  <td>' . tep_draw_input_field('cc_owner_lastname', $order->billing['lastname']) . '</td>'
                . '</tr>'
                . '<tr>'
-               . '  <td width="30%">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_NUMBER . '</td>'
+               . '  <td class="w-25">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_NUMBER . '</td>'
                . '  <td>' . tep_draw_input_field('cc_number_nh-dns', '', 'id="paypal_card_num"') . '</td>'
                . '</tr>'
                . '<tr>'
-               . '  <td width="30%">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_EXPIRES . '</td>'
+               . '  <td class="w-25">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_EXPIRES . '</td>'
                . '  <td class="date-fields">' . tep_draw_pull_down_menu('cc_expires_month', $months_array) . '&nbsp;' . tep_draw_pull_down_menu('cc_expires_year', $year_expires_array) . '</td>'
                . '</tr>'
                . '<tr>'
-               . '  <td width="30%">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_CVC . '</td>'
+               . '  <td class="w-25">' . MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_CARD_CVC . '</td>'
                . '  <td>' . tep_draw_input_field('cc_cvc_nh-dns', '', 'size="5" maxlength="4"') . '</td>'
                . '</tr>'
                . '</table>';
@@ -116,7 +116,7 @@
     }
 
     public function before_process() {
-      global $order, $order_totals, $sendto, $response_array;
+      global $order, $response_array;
 
       if (isset($_POST['cc_owner_firstname']) && !empty($_POST['cc_owner_firstname']) && isset($_POST['cc_owner_lastname']) && !empty($_POST['cc_owner_lastname']) && isset($_POST['cc_number_nh-dns']) && !empty($_POST['cc_number_nh-dns'])) {
         if (MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_DP_TRANSACTION_SERVER == 'Live') {
@@ -149,7 +149,7 @@
           'BUTTONSOURCE' => 'OSCOM23_DPPF',
         ];
 
-        if (is_numeric($sendto) && ($sendto > 0)) {
+        if (is_numeric($_SESSION['sendto']) && ($_SESSION['sendto'] > 0)) {
           $params['SHIPTOFIRSTNAME'] = $order->delivery['firstname'];
           $params['SHIPTOLASTNAME'] = $order->delivery['lastname'];
           $params['SHIPTOSTREET'] = $order->delivery['street_address'];
@@ -173,7 +173,7 @@
 
         $items_total = $this->format_raw($order->info['subtotal']);
 
-        foreach ($order_totals as $ot) {
+        foreach ($order->totals as $ot) {
           if ( !in_array($ot['code'], ['ot_subtotal', 'ot_shipping', 'ot_tax', 'ot_total']) ) {
             $item_params['L_NAME' . $line_item_no] = $ot['title'];
             $item_params['L_COST' . $line_item_no] = $this->format_raw($ot['value']);
@@ -379,7 +379,7 @@
     }
 
     function sendTransactionToGateway($url, $parameters) {
-      global $cartID, $order;
+      global $order;
 
       $server = parse_url($url);
 
@@ -391,7 +391,7 @@
         $server['path'] = '/';
       }
 
-      $request_id = (isset($order) && is_object($order)) ? md5($cartID . tep_session_id() . $this->format_raw($order->info['total'])) : 'oscom_conn_test';
+      $request_id = (isset($order->info['total'])) ? md5($_SESSION['cartID'] . session_id() . $this->format_raw($order->info['total'])) : 'oscom_conn_test';
 
       $headers = [
         'X-VPS-REQUEST-ID: ' . $request_id,
@@ -437,10 +437,10 @@
 
 // format prices without currency formatting
     function format_raw($number, $currency_code = '', $currency_value = '') {
-      global $currencies, $currency;
+      global $currencies;
 
       if (empty($currency_code) || !$this->is_set($currency_code)) {
-        $currency_code = $currency;
+        $currency_code = $_SESSION['currency'];
       }
 
       if (empty($currency_value) || !is_numeric($currency_value)) {

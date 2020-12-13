@@ -25,18 +25,8 @@
 ////
 // Redirect to another page or site
   function tep_redirect($url) {
-    if ( (strstr($url, "\n") != false) || (strstr($url, "\r") != false) ) {
+    if ( strstr($url, "\n") || strstr($url, "\r") ) {
       tep_redirect(tep_href_link('index.php', '', 'NONSSL', false));
-    }
-
-    if ( ENABLE_SSL && ('on' === getenv('HTTPS')) ) {
-      // if this is an SSL page, we can't redirect to a non-SSL page
-      // so substitute the SSL URL instead
-      $http_base = HTTP_SERVER . DIR_WS_HTTP_CATALOG;
-      $http_length = strlen($http_base);
-      if (substr($url, 0, $http_length) === $http_base) {
-        $url = HTTPS_SERVER . DIR_WS_HTTPS_CATALOG . substr($url, $http_length);
-      }
     }
 
     if ( strpos($url, '&amp;') !== false ) {
@@ -46,12 +36,13 @@
     header('Location: ' . $url);
 
 
-    exit;
+    exit();
   }
 
 ////
-// Parse the data used in the html tags to ensure the tags will not break
+// Deprecated:  replace with strtr(trim($data), $parse)
   function tep_parse_input_field_data($data, $parse) {
+    trigger_error('The tep_parse_input_field_data function has been deprecated.', E_USER_DEPRECATED);
     return strtr(trim($data), $parse);
   }
 
@@ -64,7 +55,7 @@
       $translate = ['"' => '&quot;'];
     }
 
-    return tep_parse_input_field_data($string, $translate);
+    return strtr(trim($string), $translate);
   }
 
   function tep_output_string_protected($string) {
@@ -95,12 +86,10 @@
 ////
 // Return a product's name
 // TABLES: products
-  function tep_get_products_name($product_id, $language = '') {
-    global $languages_id;
+  function tep_get_products_name($product_id, $language_id = null) {
+    if (empty($language_id)) $language_id = $_SESSION['languages_id'];
 
-    if (empty($language)) $language = $languages_id;
-
-    $product_query = tep_db_query("SELECT products_name FROM products_description WHERE products_id = " . (int)$product_id . " AND language_id = " . (int)$language);
+    $product_query = tep_db_query("SELECT products_name FROM products_description WHERE products_id = " . (int)$product_id . " AND language_id = " . (int)$language_id);
     $product = tep_db_fetch_array($product_query);
 
     return $product['products_name'];
@@ -113,7 +102,7 @@
     $product_query = tep_db_query("SELECT specials_new_products_price FROM specials WHERE products_id = " . (int)$product_id . " AND status = 1");
     $product = tep_db_fetch_array($product_query);
 
-    return $product['specials_new_products_price'];
+    return $product['specials_new_products_price'] ?? null;
   }
 
 ////
@@ -348,11 +337,9 @@
   }
 
   function tep_get_categories($categories_array = '', $parent_id = '0', $indent = '') {
-    global $languages_id;
-
     if (!is_array($categories_array)) $categories_array = [];
 
-    $categories_query = tep_db_query("SELECT c.categories_id, cd.categories_name FROM categories c, categories_description cd WHERE parent_id = " . (int)$parent_id . " AND c.categories_id = cd.categories_id AND cd.language_id = " . (int)$languages_id . " ORDER BY sort_order, cd.categories_name");
+    $categories_query = tep_db_query("SELECT c.categories_id, cd.categories_name FROM categories c, categories_description cd WHERE parent_id = " . (int)$parent_id . " AND c.categories_id = cd.categories_id AND cd.language_id = " . (int)$_SESSION['languages_id'] . " ORDER BY sort_order, cd.categories_name");
     while ($categories = tep_db_fetch_array($categories_query)) {
       $categories_array[] = [
         'id' => $categories['categories_id'],
@@ -701,7 +688,7 @@
 ////
 //! Send email (text/html) using MIME
 // This is the central mail function. The SMTP Server should be configured
-// correct in php.ini
+// correctly in php.ini
 // Parameters:
 // $to_name           The name of the recipient, e.g. "Jan Wildeboer"
 // $to_email_address  The eMail address of the recipient,
@@ -712,7 +699,7 @@
 // $from_email_adress The eMail address of the sender,
 //                    e.g. info@mytepshop.com
   function tep_mail($to_name, $to_email_address, $email_subject, $email_text, $from_email_name, $from_email_address) {
-    if (SEND_EMAILS != 'true') {
+    if (SEND_EMAILS !== 'true') {
       return false;
     }
 
@@ -720,10 +707,13 @@
     $message = new email();
     $message->add_message($email_text);
     $message->build_message();
-    $message->send($to_name, $to_email_address, $from_email_name, $from_email_address, $email_subject);
+
+    return $message->send($to_name, $to_email_address, $from_email_name, $from_email_address, $email_subject);
   }
 
   function tep_notify($trigger, $subject) {
+    $notified = false;
+
     if (defined('MODULE_NOTIFICATIONS_INSTALLED') && tep_not_null(MODULE_NOTIFICATIONS_INSTALLED)) {
       foreach ((array)explode(';', MODULE_NOTIFICATIONS_INSTALLED) as $basename) {
         $class = pathinfo($basename, PATHINFO_FILENAME);
@@ -737,10 +727,15 @@
         }
 
         if (in_array($trigger, $class::TRIGGERS)) {
-          $GLOBALS[$class]->notify($subject);
+          $result = $GLOBALS[$class]->notify($subject);
+          if (!is_null($result)) {
+            $notified = $notified || $result;
+          }
         }
       }
     }
+
+    return $notified;
   }
 
 ////
@@ -930,8 +925,6 @@
   }
 
   function tep_count_customer_orders($id = '', $check_session = true) {
-    global $languages_id;
-
     if (!is_numeric($id)) {
       $id = $_SESSION['customer_id'] ?? 0;
     }
@@ -940,7 +933,7 @@
       return 0;
     }
 
-    $orders_check_query = tep_db_query("SELECT COUNT(*) AS total FROM orders o, orders_status s WHERE o.customers_id = " . (int)$id . " AND o.orders_status = s.orders_status_id AND s.language_id = " . (int)$languages_id . " AND s.public_flag = 1");
+    $orders_check_query = tep_db_query("SELECT COUNT(*) AS total FROM orders o, orders_status s WHERE o.customers_id = " . (int)$id . " AND o.orders_status = s.orders_status_id AND s.language_id = " . (int)$_SESSION['languages_id'] . " AND s.public_flag = 1");
     $orders_check = tep_db_fetch_array($orders_check_query);
 
     return $orders_check['total'];
@@ -987,4 +980,20 @@
 
   function tep_form_processing_is_valid() {
     return !($GLOBALS['error'] ?? false);
+  }
+
+  function tep_require_login($parameters = null) {
+    if (!isset($_SESSION['customer_id'])) {
+      $_SESSION['navigation']->set_snapshot($parameters);
+      tep_redirect(tep_href_link('login.php', '', 'SSL'));
+    }
+  }
+
+  function tep_ltrim_once($s, $prefix) {
+    $length = strlen($prefix);
+    if (substr($s, 0, $length) === $prefix) {
+      return substr($s, $length);
+    }
+
+    return $s;
   }

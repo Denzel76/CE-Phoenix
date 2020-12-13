@@ -22,26 +22,33 @@
 
   $action = ($_GET['action'] ?? '');
 
+  $page_fields = $customer_data->get_fields_for_page('customers');
   $OSCOM_Hooks->call('customers', 'preAction');
 
   if (tep_not_null($action)) {
     switch ($action) {
       case 'update':
         $_SESSION['customer_id'] = (int)tep_db_prepare_input($_GET['cID']);
-        $customer_details = $customer_data->process();
+        $customer_details = $customer_data->process($page_fields);
         unset($_SESSION['customer_id']);
 
-        if (!empty($customer_details)) {
+        $OSCOM_Hooks->call('customers', 'injectFormVerify');
+
+        if (tep_form_processing_is_valid()) {
           $customer_details['id'] = (int)tep_db_prepare_input($_GET['cID']);
           if (empty($customer_details['password'])) {
             unset($customer_details['password']);
           } else {
             require 'includes/functions/password_funcs.php';
           }
-          $customer_data->update($customer_details, ['id' => $customer_details['id']]);
+
+          $customer_data->update($customer_details, [
+            'id' => $customer_details['id'],
+            'address_book_id' => (int)$_POST['default_address_id'],
+          ]);
           tep_db_query("UPDATE customers_info SET customers_info_date_account_last_modified = NOW() WHERE customers_info_id = " . (int)$customer_details['id']);
 
-          $OSCOM_Hooks->call('customers', 'afterUpdate');
+          $OSCOM_Hooks->call('customers', 'updateAction');
 
           tep_redirect(tep_href_link('customers.php', tep_get_all_get_params(['cID', 'action']) . 'cID=' . $customer_details['id']));
         }
@@ -65,7 +72,7 @@
         tep_db_query("DELETE FROM customers_basket_attributes WHERE customers_id = " . (int)$customers_id);
         tep_db_query("DELETE FROM whos_online WHERE customer_id = " . (int)$customers_id);
 
-        $OSCOM_Hooks->call('customers', 'afterDelete');
+        $OSCOM_Hooks->call('customers', 'deleteConfirmAction');
 
         tep_redirect(tep_href_link('customers.php', tep_get_all_get_params(['cID', 'action'])));
         break;
@@ -86,7 +93,9 @@
     </div>
     <div class="col text-right align-self-center">
       <?php
-      if (!isset($_GET['action'])) {
+      if (isset($_GET['action'])) {
+        echo tep_draw_bootstrap_button(IMAGE_CANCEL, 'fas fa-angle-left', tep_href_link('customers.php', tep_get_all_get_params(['action'])), null, null, 'btn-light');
+      } else {
         echo tep_draw_form('search', 'customers.php', '', 'get');
           echo '<div class="input-group">';
             echo '<div class="input-group-prepend">';
@@ -97,22 +106,16 @@
           echo tep_hide_session_id();
         echo '</form>';
       }
-      else {
-        echo tep_draw_bootstrap_button(IMAGE_CANCEL, 'fas fa-angle-left', tep_href_link('customers.php', tep_get_all_get_params(array('action'))), null, null, 'btn-light');
-      }
       ?>
     </div>
   </div>
 
   <?php
   if ($action == 'edit' || $action == 'update') {
-    ?>
-
-  <div class="contentContainer">
-    <?php
+    $hooks =& $OSCOM_Hooks;
     $oscTemplate = new oscTemplate();
     echo tep_draw_form('customers', 'customers.php', tep_get_all_get_params(['action']) . 'action=update', 'post');
-    echo tep_draw_hidden_field('default_address_id', $customer_data->get('address_id', $customer_details));
+    echo tep_draw_hidden_field('default_address_id', $customer_data->get('default_address_id', $customer_details));
 
     $cwd = getcwd();
     chdir(DIR_FS_CATALOG);
@@ -135,23 +138,28 @@ EOSQL
 
       <?php
       foreach ((array)$grouped_modules[$customer_data_group['customer_data_groups_id']] as $module) {
-        $module->display_input($customer_details);
+        if (count(array_intersect(get_class($module)::PROVIDES, $page_fields)) > 0) {
+          $module->display_input($customer_details);
+        }
       }
     }
 
     chdir($cwd);
 
+    echo $OSCOM_Hooks->call('customers', 'editForm');
+    echo $OSCOM_Hooks->call('customers', 'injectFormDisplay');
+
     echo tep_draw_bootstrap_button(IMAGE_SAVE, 'fas fa-save', null, 'primary', null, 'btn-success btn-block btn-lg');
     ?>
 
   </form>
-</div>
+
 <?php
   } else {
 ?>
 
   <div class="row no-gutters">
-    <div class="col">
+    <div class="col-12 col-sm-8">
       <div class="table-responsive">
         <table class="table table-striped table-hover">
           <thead class="thead-dark">
@@ -206,9 +214,9 @@ EOSQL
             }
             ?>
               <tr <?php echo $css; ?>onclick="document.location.href='<?php echo $href; ?>'">
-                <td class="dataTableContent"><?php echo $customer_data->get('sortable_name', $customers); ?></td>
-                <td class="dataTableContent" align="right"><?php echo tep_date_short($info['date_account_created']); ?></td>
-                <td class="dataTableContent" align="right"><?php echo $icon; ?></td>
+                <td><?php echo $customer_data->get('sortable_name', $customers); ?></td>
+                <td class="text-right"><?php echo tep_date_short($info['date_account_created']); ?></td>
+                <td class="text-right"><?php echo $icon; ?></td>
               </tr>
               <?php
             }
@@ -241,25 +249,25 @@ EOSQL
 
         $contents = ['form' => tep_draw_form('customers', 'customers.php', tep_get_all_get_params(['cID', 'action']) . 'cID=' . $cInfo->id . '&action=deleteconfirm')];
         $contents[] = ['text' => TEXT_DELETE_INTRO . '<br><br><strong>' . $cInfo->name . '</strong>'];
-        if (isset($cInfo->number_of_reviews) && ($cInfo->number_of_reviews) > 0) $contents[] = ['text' => tep_draw_checkbox_field('delete_reviews', 'on', true) . ' ' . sprintf(TEXT_DELETE_REVIEWS, $cInfo->number_of_reviews)];
-        $contents[] = ['class' => 'text-center', 'text' => tep_draw_bootstrap_button(IMAGE_DELETE, 'fas fa-trash', null, 'primary', null, 'btn-danger xxx text-white mr-2') . tep_draw_bootstrap_button(IMAGE_CANCEL, 'fas fa-times', tep_href_link('customers.php', tep_get_all_get_params(['cID', 'action']) . 'cID=' . $cInfo->id), null, null, 'btn-light')];
+        if (isset($cInfo->number_of_reviews) && ($cInfo->number_of_reviews > 0)) {
+          $contents[] = ['text' => '<div class="custom-control custom-switch">' . tep_draw_selection_field('delete_reviews', 'checkbox', 'on', 1, 'class="custom-control-input" id="cDeleteReview"') . '<label for="cDeleteReview" class="custom-control-label text-muted"><small>' . sprintf(TEXT_DELETE_REVIEWS, $cInfo->number_of_reviews) . '</small></label></div>'];
+        }
+        $contents[] = ['class' => 'text-center', 'text' => tep_draw_bootstrap_button(IMAGE_DELETE, 'fas fa-trash', null, 'primary', null, 'btn-danger mr-2') . tep_draw_bootstrap_button(IMAGE_CANCEL, 'fas fa-times', tep_href_link('customers.php', tep_get_all_get_params(['cID', 'action']) . 'cID=' . $cInfo->id), null, null, 'btn-light')];
         break;
       default:
         if (($cInfo ?? null) instanceof objectInfo) {
           $heading[] = ['text' => $cInfo->name];
 
-          $contents[] = ['class' => 'text-center', 'text' => tep_draw_bootstrap_button(IMAGE_EDIT, 'fas fa-cogs', tep_href_link('customers.php', tep_get_all_get_params(['cID', 'action']) . 'cID=' . $cInfo->id . '&action=edit'), null, null, 'btn-warning mr-2') . tep_draw_bootstrap_button(IMAGE_DELETE, 'fas fa-trash', tep_href_link('customers.php', tep_get_all_get_params(['cID', 'action']) . 'cID=' . $cInfo->id . '&action=confirm'), null, null, 'btn-danger xxx text-white mr-2') . tep_draw_bootstrap_button(IMAGE_ORDERS, 'fas fa-shopping-cart', tep_href_link('orders.php', 'cID=' . $cInfo->id), null, null, 'btn-info xxx text-white mr-2') . tep_draw_bootstrap_button(IMAGE_EMAIL, 'fas fa-at', tep_href_link('mail.php', 'customer=' . urlencode($cInfo->email_address)), null, null, 'btn-info xxx text-white'),
+          $contents[] = ['class' => 'text-center', 'text' => tep_draw_bootstrap_button(IMAGE_EDIT, 'fas fa-cogs', tep_href_link('customers.php', tep_get_all_get_params(['cID', 'action']) . 'cID=' . $cInfo->id . '&action=edit'), null, null, 'btn-warning mr-2') . tep_draw_bootstrap_button(IMAGE_DELETE, 'fas fa-trash', tep_href_link('customers.php', tep_get_all_get_params(['cID', 'action']) . 'cID=' . $cInfo->id . '&action=confirm'), null, null, 'btn-danger mr-2') . tep_draw_bootstrap_button(IMAGE_ORDERS, 'fas fa-shopping-cart', tep_href_link('orders.php', 'cID=' . $cInfo->id), null, null, 'btn-info mr-2') . tep_draw_bootstrap_button(IMAGE_EMAIL, 'fas fa-at', tep_href_link('mail.php', 'customer=' . urlencode($cInfo->email_address)), null, null, 'btn-info'),
           ];
           $contents[] = ['text' => sprintf(TEXT_DATE_ACCOUNT_CREATED, tep_date_short($cInfo->date_account_created))];
           $contents[] = ['text' => sprintf(TEXT_DATE_ACCOUNT_LAST_MODIFIED, tep_date_short($cInfo->date_account_last_modified))];
           $contents[] = ['text' => sprintf(TEXT_INFO_DATE_LAST_LOGON, tep_date_short($cInfo->date_last_logon))];
           $contents[] = ['text' => sprintf(TEXT_INFO_NUMBER_OF_LOGONS, $cInfo->number_of_logons)];
 
-          if ($customer_data->has('country_name') && isset($cInfo->country_id)) {
-            $country_query = tep_db_query("SELECT * FROM countries WHERE countries_id = " . (int)$cInfo->country_id);
-            $country = (array)tep_db_fetch_array($country_query);
-
-            $contents[] = ['text' => sprintf(TEXT_INFO_COUNTRY, $country['countries_name'])];
+          if ($customer_data->has('country_name') && !empty($cInfo->country_id)) {
+            $customers = (array)$cInfo;
+            $contents[] = ['text' => sprintf(TEXT_INFO_COUNTRY, $customer_data->get('country_name', $customers))];
           }
 
           $contents[] = ['text' => sprintf(TEXT_INFO_NUMBER_OF_REVIEWS, $cInfo->number_of_reviews)];
@@ -268,7 +276,7 @@ EOSQL
     }
 
     if ( (tep_not_null($heading)) && (tep_not_null($contents)) ) {
-    echo '<div class="col-12 col-sm-3">';
+    echo '<div class="col-12 col-sm-4">';
       $box = new box;
       echo $box->infoBox($heading, $contents);
     echo '</div>';

@@ -45,7 +45,7 @@
         ],
         static::CONFIG_KEY_BASE . 'PAGES' => [
           'title' => 'Pages',
-          'value' => 'address_book;checkout_new_address',
+          'value' => 'address_book;checkout_new_address;create_account;customers',
           'desc' => 'On what pages should this appear?',
           'set_func' => 'tep_draw_account_edit_pages(',
           'use_func' => 'abstract_module::list_exploded',
@@ -93,16 +93,16 @@
       $input = tep_draw_input_field('postcode', $postcode, $attribute)
              . $postInput;
 
-      include $GLOBALS['oscTemplate']->map_to_template(MODULE_CUSTOMER_DATA_POST_CODE_TEMPLATE);
+      include $GLOBALS['oscTemplate']->map_to_template($this->base_constant('TEMPLATE'));
     }
 
     public function process(&$customer_details) {
       $customer_details['postcode'] = tep_db_prepare_input($_POST['postcode']);
 
-      if ($this->is_required() && (strlen($customer_details['postcode']) < MODULE_CUSTOMER_DATA_POST_CODE_MIN_LENGTH)) {
+      if ($this->is_required() && (strlen($customer_details['postcode']) < $this->base_constant('MIN_LENGTH'))) {
         $GLOBALS['messageStack']->add_classed(
           $GLOBALS['message_stack_area'] ?? 'customer_data',
-          sprintf(ENTRY_POST_CODE_ERROR, MODULE_CUSTOMER_DATA_POST_CODE_MIN_LENGTH));
+          sprintf(ENTRY_POST_CODE_ERROR, $this->base_constant('MIN_LENGTH')));
 
         return false;
       }

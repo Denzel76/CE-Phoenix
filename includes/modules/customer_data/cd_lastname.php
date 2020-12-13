@@ -45,7 +45,7 @@
         ],
         static::CONFIG_KEY_BASE . 'PAGES' => [
           'title' => 'Pages',
-          'value' => 'account_edit;address_book;checkout_new_address',
+          'value' => 'account_edit;address_book;checkout_new_address;create_account;customers',
           'desc' => 'On what pages should this appear?',
           'set_func' => 'tep_draw_account_edit_pages(',
           'use_func' => 'abstract_module::list_exploded',
@@ -92,7 +92,7 @@
       $input = tep_draw_input_field('lastname', $lastname, $attribute)
              . $postInput;
 
-      include $GLOBALS['oscTemplate']->map_to_template(MODULE_CUSTOMER_DATA_LASTNAME_TEMPLATE);
+      include $GLOBALS['oscTemplate']->map_to_template($this->base_constant('TEMPLATE'));
     }
 
     public function process(&$customer_details) {

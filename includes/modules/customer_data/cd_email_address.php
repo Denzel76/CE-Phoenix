@@ -45,7 +45,7 @@
         ],
         static::CONFIG_KEY_BASE . 'PAGES' => [
           'title' => 'Pages',
-          'value' => 'account_edit',
+          'value' => 'account_edit;create_account;customers',
           'desc' => 'On what pages should this appear?',
           'set_func' => 'tep_draw_account_edit_pages(',
           'use_func' => 'abstract_module::list_exploded',
@@ -93,7 +93,7 @@
       $input = tep_draw_input_field('email_address', $email_address, $attribute, 'email')
              . $postInput;
 
-      include $GLOBALS['oscTemplate']->map_to_template(MODULE_CUSTOMER_DATA_EMAIL_ADDRESS_TEMPLATE);
+      include $GLOBALS['oscTemplate']->map_to_template($this->base_constant('TEMPLATE'));
     }
 
     public function process(&$customer_details) {
@@ -112,8 +112,13 @@
         $GLOBALS['messageStack']->add_classed($GLOBALS['message_stack_area'] ?? 'customer_data', ENTRY_EMAIL_ADDRESS_CHECK_ERROR);
 
         return false;
-      } elseif (!isset($_SESSION['customer_id']) && !isset($customer_details['id'])) {
-        $check_email_query = tep_db_query("SELECT COUNT(*) AS total FROM customers WHERE customers_email_address = '" . tep_db_input($customer_details['email_address']) . "'");
+      } else {
+        $check_email_sql = "SELECT COUNT(*) AS total FROM customers WHERE customers_email_address = '" . tep_db_input($customer_details['email_address']) . "'";
+        if (isset($_SESSION['customer_id']) || isset($customer_details['id'])) {
+          $check_email_sql .= " AND customers_id != " . (int)($_SESSION['customer_id'] ?? $customer_details['id']);
+        }
+
+        $check_email_query = tep_db_query($check_email_sql);
         $check_email = tep_db_fetch_array($check_email_query);
         if ($check_email['total'] > 0) {
           $GLOBALS['messageStack']->add_classed($GLOBALS['message_stack_area'] ?? 'customer_data', ENTRY_EMAIL_ADDRESS_ERROR_EXISTS);

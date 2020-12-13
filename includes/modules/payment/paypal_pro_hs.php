@@ -61,18 +61,18 @@
       }
 
       if ( !function_exists('curl_init') ) {
-        $this->description .= '<div class="secWarning">' . $this->_app->getDef('module_hs_error_curl') . '</div>';
+        $this->description .= '<div class="alert alert-warning">' . $this->_app->getDef('module_hs_error_curl') . '</div>';
 
         $this->enabled = false;
       }
 
       if ( $this->enabled === true ) {
         if ( (OSCOM_APP_PAYPAL_GATEWAY == '1') && !$this->_app->hasCredentials('HS') ) { // PayPal
-          $this->description .= '<div class="secWarning">' . $this->_app->getDef('module_hs_error_credentials') . '</div>';
+          $this->description .= '<div class="alert alert-warning">' . $this->_app->getDef('module_hs_error_credentials') . '</div>';
 
           $this->enabled = false;
         } elseif ( OSCOM_APP_PAYPAL_GATEWAY == '0' ) { // Payflow
-          $this->description .= '<div class="secWarning">' . $this->_app->getDef('module_hs_error_payflow') . '</div>';
+          $this->description .= '<div class="alert alert-warning">' . $this->_app->getDef('module_hs_error_payflow') . '</div>';
 
           $this->enabled = false;
         }
@@ -105,22 +105,18 @@
     }
 
     private function extract_order_id() {
-      global $cart_PayPal_Pro_HS_ID;
-
-      return substr($cart_PayPal_Pro_HS_ID, strpos($cart_PayPal_Pro_HS_ID, '-')+1);
+      return substr($_SESSION['cart_PayPal_Pro_HS_ID'], strpos($_SESSION['cart_PayPal_Pro_HS_ID'], '-')+1);
     }
 
     function selection() {
-      global $cart_PayPal_Pro_HS_ID;
-
-      if (tep_session_is_registered('cart_PayPal_Pro_HS_ID')) {
+      if (isset($_SESSION['cart_PayPal_Pro_HS_ID'])) {
         $order_id = $this->extract_order_id();
 
         $check_query = tep_db_query('SELECT orders_id FROM orders_status_history WHERE orders_id = ' . (int)$order_id . ' LIMIT 1');
 
         if (tep_db_num_rows($check_query) < 1) {
           tep_delete_order($order_id);
-          tep_session_unregister('cart_PayPal_Pro_HS_ID');
+          unset($_SESSION['cart_PayPal_Pro_HS_ID']);
         }
       }
 
@@ -131,32 +127,29 @@
     }
 
     function pre_confirmation_check() {
-      global $cartID, $cart;
-
-      if (empty($cart->cartID)) {
-        $cartID = $cart->cartID = $cart->generate_cart_id();
-      }
-
-      if (!tep_session_is_registered('cartID')) {
-        tep_session_register('cartID');
+      if (empty($_SESSION['cart']->cartID)) {
+        $_SESSION['cartID'] = $_SESSION['cart']->cartID = $_SESSION['cart']->generate_cart_id();
       }
     }
 
     function confirmation() {
-      global $cartID, $cart_PayPal_Pro_HS_ID, $customer_id, $order, $order_total_modules, $currency, $sendto, $pphs_result, $pphs_key;
+      global $order, $order_total_modules;
 
-      $pphs_result = [];
+      $_SESSION['pphs_result'] = [];
 
-      if (tep_session_is_registered('cartID')) {
+      if (isset($_SESSION['cartID'])) {
         $insert_order = false;
 
-        if (tep_session_is_registered('cart_PayPal_Pro_HS_ID')) {
+        if (isset($_SESSION['cart_PayPal_Pro_HS_ID'])) {
           $order_id = $this->extract_order_id();
 
-          $curr_check = tep_db_query("SELECT currency FROM orders WHERE orders_id = '" . (int)$order_id . "'");
+          $curr_check = tep_db_query("SELECT currency FROM orders WHERE orders_id = " . (int)$order_id);
           $curr = tep_db_fetch_array($curr_check);
 
-          if ( ($curr['currency'] != $order->info['currency']) || ($cartID != substr($cart_PayPal_Pro_HS_ID, 0, strlen($cartID))) ) {
+          if ( ($curr['currency'] != $order->info['currency'])
+            || ($_SESSION['cartID'] != substr($_SESSION['cart_PayPal_Pro_HS_ID'], 0, strlen($_SESSION['cartID'])))
+             )
+          {
             $check_query = tep_db_query('SELECT orders_id FROM orders_status_history WHERE orders_id = ' . (int)$order_id . ' LIMIT 1');
 
             if (tep_db_num_rows($check_query) < 1) {
@@ -170,11 +163,10 @@
         }
 
         if ($insert_order) {
-          require 'includes/modules/checkout/build_order_totals.php';
-          require 'includes/modules/checkout/insert_order.php';
+          require 'includes/system/segments/checkout/build_order_totals.php';
+          require 'includes/system/segments/checkout/insert_order.php';
 
-          $cart_PayPal_Pro_HS_ID = $cartID . '-' . $order_id;
-          tep_session_register('cart_PayPal_Pro_HS_ID');
+          $_SESSION['cart_PayPal_Pro_HS_ID'] = $_SESSION['cartID'] . '-' . $order_id;
         } else {
           $order_id = $this->extract_order_id();
         }
@@ -182,9 +174,9 @@
         $params = [
           'buyer_email' => $order->customer['email_address'],
           'cancel_return' => tep_href_link('checkout_payment.php', '', 'SSL'),
-          'currency_code' => $currency,
+          'currency_code' => $_SESSION['currency'],
           'invoice' => $order_id,
-          'custom' => $customer_id,
+          'custom' => $_SESSION['customer_id'],
           'paymentaction' => OSCOM_APP_PAYPAL_HS_TRANSACTION_METHOD == '1' ? 'sale' : 'authorization',
           'return' => tep_href_link('checkout_process.php', '', 'SSL'),
           'notify_url' => tep_href_link('ext/modules/payment/paypal/pro_hosted_ipn.php', '', 'SSL', false, false),
@@ -207,7 +199,7 @@
           'showHostedThankyouPage' => 'false',
         ];
 
-        if ( is_numeric($sendto) && ($sendto > 0) ) {
+        if ( is_numeric($_SESSION['sendto']) && ($_SESSION['sendto'] > 0) ) {
           $params['address_override'] = 'true';
           $params['first_name'] = $order->delivery['firstname'];
           $params['last_name'] = $order->delivery['lastname'];
@@ -225,20 +217,12 @@
           $params['cbt'] = $return_link_title;
         }
 
-        $pphs_result = $this->_app->getApiResult('APP', 'BMCreateButton', $params, (OSCOM_APP_PAYPAL_HS_STATUS == '1') ? 'live' : 'sandbox');
-
-        if ( !tep_session_is_registered('pphs_result') ) {
-          tep_session_register('pphs_result');
-        }
+        $_SESSION['pphs_result'] = $this->_app->getApiResult('APP', 'BMCreateButton', $params, (OSCOM_APP_PAYPAL_HS_STATUS == '1') ? 'live' : 'sandbox');
       }
 
-      $pphs_key = tep_create_random_value(16);
+      $_SESSION['pphs_key'] = tep_create_random_value(16);
 
-      if ( !tep_session_is_registered('pphs_key') ) {
-        tep_session_register('pphs_key');
-      }
-
-      $iframe_url = tep_href_link('ext/modules/payment/paypal/hosted_checkout.php', 'key=' . $pphs_key, 'SSL');
+      $iframe_url = tep_href_link('ext/modules/payment/paypal/hosted_checkout.php', 'key=' . $_SESSION['pphs_key'], 'SSL');
       $form_url = tep_href_link('checkout_payment.php', 'payment_error=paypal_pro_hs', 'SSL');
 
 // include jquery if it doesn't exist in the template
@@ -268,13 +252,11 @@ EOD;
     }
 
     function before_process() {
-      global $cart_PayPal_Pro_HS_ID, $customer_id, $pphs_result, $order, $order_totals, $sendto, $billto, $languages_id, $payment, $currencies, $cart, $$payment;
-
       $result = false;
 
-      if ( isset($_GET['tx']) && !empty($_GET['tx']) ) { // direct payment (eg, credit card)
+      if ( !empty($_GET['tx']) ) { // direct payment (eg, credit card)
         $result = $this->_app->getApiResult('APP', 'GetTransactionDetails', ['TRANSACTIONID' => $_GET['tx']], (OSCOM_APP_PAYPAL_HS_STATUS == '1') ? 'live' : 'sandbox');
-      } elseif ( isset($_POST['txn_id']) && !empty($_POST['txn_id']) ) { // paypal payment
+      } elseif ( !empty($_POST['txn_id']) ) { // paypal payment
         $result = $this->_app->getApiResult('APP', 'GetTransactionDetails', ['TRANSACTIONID' => $_POST['txn_id']], (OSCOM_APP_PAYPAL_HS_STATUS == '1') ? 'live' : 'sandbox');
       }
 
@@ -282,7 +264,7 @@ EOD;
         tep_redirect(tep_href_link('shopping_cart.php', 'error_message=' . stripslashes($result['L_LONGMESSAGE0'])));
       }
 
-      $order_id = $this->extract_order_id();
+      $order = new order($this->extract_order_id());
 
       $seller_accounts = [$this->_app->getCredentials('HS', 'email')];
 
@@ -290,57 +272,45 @@ EOD;
         $seller_accounts[] = $this->_app->getCredentials('HS', 'email_primary');
       }
 
-      if ( !isset($result['RECEIVERBUSINESS']) || !in_array($result['RECEIVERBUSINESS'], $seller_accounts) || ($result['INVNUM'] != $order_id) || ($result['CUSTOM'] != $customer_id) ) {
+      if ( !isset($result['RECEIVERBUSINESS']) || !in_array($result['RECEIVERBUSINESS'], $seller_accounts) || ($result['INVNUM'] != $order->get_id()) || ($result['CUSTOM'] != $_SESSION['customer_id']) ) {
         tep_redirect(tep_href_link('shopping_cart.php'));
       }
 
-      $pphs_result = $result;
+      $_SESSION['pphs_result'] = $result;
 
-      $check_query = tep_db_query("SELECT orders_status FROM orders WHERE orders_id = '" . (int)$order_id . "' and customers_id = '" . (int)$customer_id . "'");
+      $check_query = tep_db_query("SELECT orders_status FROM orders WHERE orders_id = " . (int)$order->get_id() . " and customers_id = " . (int)$_SESSION['customer_id']);
 
-      $tx_order_id = $pphs_result['INVNUM'];
-      $tx_customer_id = $pphs_result['CUSTOM'];
-
-      if (!tep_db_num_rows($check_query) || ($order_id != $tx_order_id) || ($customer_id != $tx_customer_id)) {
+      if (!tep_db_num_rows($check_query)) {
         tep_redirect(tep_href_link('shopping_cart.php'));
       }
 
       $check = tep_db_fetch_array($check_query);
 
-      $this->verifyTransaction();
+      $this->verifyTransaction($_SESSION['pphs_result']);
 
-      $new_order_status = DEFAULT_ORDERS_STATUS_ID;
+      $order->info['order_status'] = DEFAULT_ORDERS_STATUS_ID;
 
       if ( $check['orders_status'] != OSCOM_APP_PAYPAL_HS_PREPARE_ORDER_STATUS_ID ) {
-        $new_order_status = $check['orders_status'];
+        $order->info['order_status'] = $check['orders_status'];
       }
 
       if ( (OSCOM_APP_PAYPAL_HS_ORDER_STATUS_ID > 0) && ($check['orders_status'] == OSCOM_APP_PAYPAL_HS_ORDER_STATUS_ID) ) {
-        $new_order_status = OSCOM_APP_PAYPAL_HS_ORDER_STATUS_ID;
+        $order->info['order_status'] = OSCOM_APP_PAYPAL_HS_ORDER_STATUS_ID;
       }
 
-      tep_db_query("UPDATE orders SET orders_status = " . (int)$new_order_status . ", last_modified = NOW() WHERE orders_id = " . (int)$order_id);
+      tep_db_query("UPDATE orders SET orders_status = " . (int)$order->info['order_status'] . ", last_modified = NOW() WHERE orders_id = " . (int)$order->get_id());
 
-      $sql_data = [
-        'orders_id' => $order_id,
-        'orders_status_id' => (int)$new_order_status,
-        'date_added' => 'NOW()',
-        'customer_notified' => (SEND_EMAILS == 'true') ? '1' : '0',
-        'comments' => $order->info['comments'],
-      ];
-
-      tep_db_perform('orders_status_history', $sql_data);
-
-      include 'includes/modules/checkout/after.php';
+      $GLOBALS['hooks']->register_pipeline('after');
+      require 'includes/system/segments/checkout/insert_history.php';
 
 // load the after_process function from the payment modules
       $this->after_process();
 
-      require 'includes/modules/checkout/reset.php';
+      $GLOBALS['hooks']->register_pipeline('reset');
 
-      tep_session_unregister('cart_PayPal_Pro_HS_ID');
-      tep_session_unregister('pphs_result');
-      tep_session_unregister('pphs_key');
+      unset($_SESSION['cart_PayPal_Pro_HS_ID']);
+      unset($_SESSION['pphs_result']);
+      unset($_SESSION['pphs_key']);
 
       tep_redirect(tep_href_link('checkout_success.php', '', 'SSL'));
     }
@@ -350,17 +320,15 @@ EOD;
     }
 
     function get_error() {
-      global $pphs_error_msg;
-
       $error = [
         'title' => $this->_app->getDef('module_hs_error_general_title'),
         'error' => $this->_app->getDef('module_hs_error_general'),
       ];
 
-      if ( tep_session_is_registered('pphs_error_msg') ) {
-        $error['error'] = $pphs_error_msg;
+      if ( isset($_SESSION['pphs_error_msg']) ) {
+        $error['error'] = $_SESSION['pphs_error_msg'];
 
-        tep_session_unregister('pphs_error_msg');
+        unset($_SESSION['pphs_error_msg']);
       }
 
       return $error;
@@ -389,9 +357,7 @@ EOD;
       return ['OSCOM_APP_PAYPAL_HS_SORT_ORDER'];
     }
 
-    function verifyTransaction($is_ipn = false) {
-      global $pphs_result, $currencies;
-
+    function verifyTransaction($pphs_result, $is_ipn = false) {
       $tx_order_id = $pphs_result['INVNUM'];
       $tx_customer_id = $pphs_result['CUSTOM'];
       $tx_transaction_id = $pphs_result['TRANSACTIONID'];
@@ -401,10 +367,10 @@ EOD;
       $tx_address_status = $pphs_result['ADDRESSSTATUS'];
       $tx_amount = $pphs_result['AMT'];
       $tx_currency = $pphs_result['CURRENCYCODE'];
-      $tx_pending_reason = (isset($pphs_result['PENDINGREASON'])) ? $pphs_result['PENDINGREASON'] : null;
+      $tx_pending_reason = $pphs_result['PENDINGREASON'] ?? null;
 
       if ( is_numeric($tx_order_id) && ($tx_order_id > 0) && is_numeric($tx_customer_id) && ($tx_customer_id > 0) ) {
-        $order_query = tep_db_query("SELECT orders_id, orders_status, currency, currency_value FROM orders WHERE orders_id = '" . (int)$tx_order_id . "' and customers_id = '" . (int)$tx_customer_id . "'");
+        $order_query = tep_db_query("SELECT orders_id, orders_status, currency, currency_value FROM orders WHERE orders_id = " . (int)$tx_order_id . " and customers_id = " . (int)$tx_customer_id);
 
         if ( tep_db_num_rows($order_query) === 1 ) {
           $order = tep_db_fetch_array($order_query);
@@ -431,7 +397,7 @@ EOD;
             $new_order_status = (OSCOM_APP_PAYPAL_HS_ORDER_STATUS_ID > 0 ? OSCOM_APP_PAYPAL_HS_ORDER_STATUS_ID : $new_order_status);
           }
 
-          tep_db_query("UPDATE orders SET orders_status = '" . (int)$new_order_status . "', last_modified = NOW() WHERE orders_id = " . (int)$order['orders_id']);
+          tep_db_query("UPDATE orders SET orders_status = " . (int)$new_order_status . ", last_modified = NOW() WHERE orders_id = " . (int)$order['orders_id']);
 
           if ( $is_ipn === true ) {
             $comment_status .= "\n" . 'Source: IPN';

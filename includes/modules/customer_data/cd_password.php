@@ -45,7 +45,7 @@
         ],
         static::CONFIG_KEY_BASE . 'PAGES' => [
           'title' => 'Pages',
-          'value' => 'account_password',
+          'value' => 'account_password;create_account;customers',
           'desc' => 'On what pages should this appear?',
           'set_func' => 'tep_draw_account_edit_pages(',
           'use_func' => 'abstract_module::list_exploded',
@@ -78,7 +78,7 @@
       $label_text = constant($entry_base);
 
       $input_id = 'inputPassword';
-      $attribute = 'id="' . $input_id . '" placeholder="' . constant($entry_base . '_TEXT') . '"';
+      $attribute = 'id="' . $input_id . '" autocapitalize="none" placeholder="' . constant($entry_base . '_TEXT') . '"';
       $postInput = '';
       if ($this->is_required()) {
         $attribute = self::REQUIRED_ATTRIBUTE . $attribute;
@@ -94,13 +94,13 @@
       $input = tep_draw_input_field('password', null, $attribute, 'password')
              . $postInput;
 
-      include $GLOBALS['oscTemplate']->map_to_template(MODULE_CUSTOMER_DATA_PASSWORD_TEMPLATE);
+      include $GLOBALS['oscTemplate']->map_to_template($this->base_constant('TEMPLATE'));
     }
 
     public function process(&$customer_details, $entry_base = 'ENTRY_PASSWORD') {
       $customer_details['password'] = tep_db_prepare_input($_POST['password']);
 
-      if (strlen($customer_details['password']) < MODULE_CUSTOMER_DATA_PASSWORD_MIN_LENGTH
+      if (strlen($customer_details['password']) < $this->base_constant('MIN_LENGTH')
         && ($this->is_required()
           || !empty($customer_details['password'])
           )
@@ -108,7 +108,7 @@
       {
         $GLOBALS['messageStack']->add_classed(
           $GLOBALS['message_stack_area'] ?? 'customer_data',
-          sprintf(constant($entry_base . '_ERROR'), MODULE_CUSTOMER_DATA_PASSWORD_MIN_LENGTH));
+          sprintf(constant($entry_base . '_ERROR'), $this->base_constant('MIN_LENGTH')));
 
         return false;
       }

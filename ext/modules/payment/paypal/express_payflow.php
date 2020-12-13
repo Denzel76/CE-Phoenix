@@ -14,7 +14,7 @@
   require 'includes/application_top.php';
 
 // if there is nothing in the customer's cart, redirect them to the shopping cart page
-  if ($cart->count_contents() < 1) {
+  if ($_SESSION['cart']->count_contents() < 1) {
     tep_redirect(tep_href_link('shopping_cart.php'));
   }
 
@@ -33,7 +33,7 @@
 
   if ( !isset($_SESSION['sendto']) ) {
     if ( $customer instanceof customer ) {
-      $_SESSION['sendto'] = $customer->get('default_address_id');
+      $_SESSION['sendto'] = $customer->get('default_sendto');
     } else {
       $country = [ 'country_id' => STORE_COUNTRY ];
       $country = $customer_data->get('country', $country);
@@ -64,7 +64,7 @@
 
 // register a random ID in the session to check throughout the checkout procedure
 // against alterations in the shopping cart contents
-  $_SESSION['cartID'] = $cart->cartID;
+  $_SESSION['cartID'] = $_SESSION['cart']->cartID;
 
   switch ($_GET['osC_Action']) {
     case 'retrieve':
@@ -94,7 +94,7 @@
             if ( ($response_array['PAYERSTATUS'] == 'unverified') && !empty($check['customers_password']) ) {
               $messageStack->add_session('login', MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_EC_WARNING_LOCAL_LOGIN_REQUIRED, 'warning');
 
-              $navigation->set_snapshot();
+              $_SESSION['navigation']->set_snapshot();
 
               $login_url = tep_href_link('login.php', '', 'SSL');
               $login_email_address = tep_output_string($response_array['EMAIL']);
@@ -195,15 +195,17 @@ EOD;
         if ($check = tep_db_fetch_array($check_query)) {
           $_SESSION['sendto'] = $check['address_book_id'];
         } else {
-          $customer_details = ['customers_id' => $_SESSION['customer_id'],
-                                  'entry_firstname' => $ship_firstname,
-                                  'entry_lastname' => $ship_lastname,
-                                  'entry_street_address' => $ship_address,
-                                  'entry_postcode' => $ship_postcode,
-                                  'entry_city' => $ship_city,
-                                  'entry_country_id' => $ship_country_id];
+          $customer_details = [
+            'customers_id' => $_SESSION['customer_id'],
+            'entry_firstname' => $ship_firstname,
+            'entry_lastname' => $ship_lastname,
+            'entry_street_address' => $ship_address,
+            'entry_postcode' => $ship_postcode,
+            'entry_city' => $ship_city,
+            'entry_country_id' => $ship_country_id,
+          ];
 
-          if (ACCOUNT_STATE == 'true') {
+          if ($customer_data->has(['state'])) {
             if ($ship_zone_id > 0) {
               $customer_details['entry_zone_id'] = $ship_zone_id;
               $customer_details['entry_state'] = '';
@@ -222,18 +224,18 @@ EOD;
           }
         }
 
-        $_SESSION['billto'] = $sendto;
+        $_SESSION['billto'] = $_SESSION['sendto'];
         $billto =& $_SESSION['billto'];
         $sendto =& $_SESSION['sendto'];
 
         $order = new order();
 
-        if ($cart->get_content_type() === 'virtual') {
+        if ($_SESSION['cart']->get_content_type() === 'virtual') {
           $_SESSION['shipping'] = false;
-          $sendto = false;
+          $_SESSION['sendto'] = false;
         } else {
-          $total_weight = $cart->show_weight();
-          $total_count = $cart->count_contents();
+          $total_weight = $_SESSION['cart']->show_weight();
+          $total_count = $_SESSION['cart']->count_contents();
 
 // load all enabled shipping modules
           $shipping_modules = new shipping();
@@ -350,9 +352,9 @@ EOD;
         $params['SHIPTOZIP'] = $order->delivery['postcode'];
       }
 
-      if ($cart->get_content_type() !== 'virtual') {
-        $total_weight = $cart->show_weight();
-        $total_count = $cart->count_contents();
+      if ($_SESSION['cart']->get_content_type() !== 'virtual') {
+        $total_weight = $_SESSION['cart']->show_weight();
+        $total_count = $_SESSION['cart']->count_contents();
 
 // load all enabled shipping modules
         $shipping_modules = new shipping();
@@ -385,7 +387,7 @@ EOD;
           }
         } else {
           if ( defined('SHIPPING_ALLOW_UNDEFINED_ZONES') && (SHIPPING_ALLOW_UNDEFINED_ZONES == 'False') ) {
-            tep_session_unregister('shipping');
+            unset($_SESSION['shipping']);
 
             $messageStack->add_session('checkout_address', MODULE_PAYMENT_PAYPAL_PRO_PAYFLOW_EC_ERROR_NO_SHIPPING_AVAILABLE_TO_SHIPPING_ADDRESS);
 
@@ -451,7 +453,7 @@ EOD;
       }
 
       $order_total_modules = new order_total();
-      $order_totals = $order_total_modules->process();
+      $order->totals = $order_total_modules->process();
 
 // Remove shipping tax from total that was added again in ot_shipping
       if (DISPLAY_PRICE_WITH_TAX == 'true') {
@@ -466,7 +468,7 @@ EOD;
 
       $items_total = $paypal_pro_payflow_ec->format_raw($order->info['subtotal']);
 
-      foreach ($order_totals as $ot) {
+      foreach ($order->totals as $ot) {
         if ( !in_array($ot['code'], ['ot_subtotal', 'ot_shipping', 'ot_tax', 'ot_total']) ) {
           $item_params['L_NAME' . $line_item_no] = $ot['title'];
           $item_params['L_COST' . $line_item_no] = $paypal_pro_payflow_ec->format_raw($ot['value']);

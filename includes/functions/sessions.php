@@ -10,7 +10,12 @@
   Released under the GNU General Public License
 */
 
-  if (STORE_SESSIONS == 'mysql') {
+  if (defined('DIR_FS_SESSION') && DIR_FS_SESSION && is_dir(DIR_FS_SESSION) && is_writable(DIR_FS_SESSION)) {
+    session_save_path(DIR_FS_SESSION);
+  } else {
+    // if we don't have a usable session directory defined,
+    // use MySQL sessions
+    // Note:  this is the default configuration in the normal install process.
     function _sess_open($save_path, $session_name) {
       return true;
     }
@@ -67,7 +72,7 @@
         $session_data = session_get_cookie_params();
 
         setcookie(session_name(), '', time()-42000, $session_data['path'], $session_data['domain']);
-        unset($_COOKIE[tep_session_name()]);
+        unset($_COOKIE[session_name()]);
 
         $sane_session_id = false;
       }
@@ -156,7 +161,7 @@
       $SID = session_name() . '=' . session_id();
     }
 
-    tep_whos_online_update_session_id($old_id, session_id());
+    whos_online::update_session_id($old_id, session_id());
   }
 
   function tep_reset_session_token() {

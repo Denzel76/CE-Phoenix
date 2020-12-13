@@ -13,8 +13,6 @@
 ////
 // The HTML href link wrapper function
   function tep_href_link($page = '', $parameters = '', $connection = 'SSL', $add_session_id = true) {
-    global $request_type;
-
     $page = tep_output_string($page);
 
     if ($page == '') {
@@ -27,83 +25,41 @@ EOERROR
 );
     }
 
-    if ($connection == 'NONSSL') {
-      $link = HTTP_SERVER . DIR_WS_ADMIN;
-    } elseif ($connection == 'SSL') {
-      if (ENABLE_SSL == true) {
-        $link = HTTPS_SERVER . DIR_WS_HTTPS_ADMIN;
-      } else {
-        $link = HTTP_SERVER . DIR_WS_ADMIN;
-      }
-    } else {
-      die(<<<EOERROR
-<h5>Error!</h5>
-<p>Unable to determine connection method on a link!/p>
-<p>Known methods: NONSSL SSL</p>
-<p>Function used:</p>
-<p>tep_href_link('$page', '$parameters', '$connection', '$add_session_id')</p>
-EOERROR
-);
-    }
+    $link = HTTP_SERVER . DIR_WS_ADMIN . $page;
 
     if (tep_not_null($parameters)) {
-      $link .= $page . '?' . tep_output_string($parameters);
+      $link .= '?' . tep_output_string($parameters);
       $separator = '&';
     } else {
-      $link .= $page;
       $separator = '?';
     }
 
-    while ( (substr($link, -1) == '&') || (substr($link, -1) == '?') ) $link = substr($link, 0, -1);
+    $link = rtrim($link, '&?');
 
 // Add the session ID when moving from different HTTP and HTTPS servers, or when SID is defined
-    if ( ($add_session_id == true) && (SESSION_FORCE_COOKIE_USE == 'False') ) {
-      if ( isset($SID) && tep_not_null($SID) ) {
-        $_sid = $SID;
-      } elseif ( ( ($request_type == 'NONSSL') && ($connection == 'SSL') && (ENABLE_SSL == true) ) || ( ($request_type == 'SSL') && ($connection == 'NONSSL') ) ) {
-        if (HTTP_COOKIE_DOMAIN != HTTPS_COOKIE_DOMAIN) {
-          $_sid = tep_session_name() . '=' . tep_session_id();
-        }
-      }
+    if ( $add_session_id && isset($SID) && (SESSION_FORCE_COOKIE_USE == 'False') && tep_not_null($SID) ) {
+      $_sid = $SID;
     }
 
     if (isset($_sid)) {
       $link .= $separator . tep_output_string($_sid);
     }
 
-    while (strpos($link, '&&') !== false) $link = str_replace('&&', '&', $link);
+    while (strpos($link, '&&') !== false) {
+      $link = str_replace('&&', '&', $link);
+    }
 
     return $link;
   }
 
   function tep_catalog_href_link($page = '', $parameters = '', $connection = 'NONSSL') {
-    if ($connection == 'NONSSL') {
-      $link = HTTP_CATALOG_SERVER . DIR_WS_CATALOG;
-    } elseif ($connection == 'SSL') {
-      if (ENABLE_SSL_CATALOG == 'true') {
-        $link = HTTPS_CATALOG_SERVER . (defined('DIR_WS_HTTPS_CATALOG') ? DIR_WS_HTTPS_CATALOG : DIR_WS_CATALOG);
-      } else {
-        $link = HTTP_CATALOG_SERVER . DIR_WS_CATALOG;
-      }
-    } else {
-      die(<<<EOERROR
-<h5>Error!</h5>
-<p>Unable to determine connection method on a link!/p>
-<p>Known methods: NONSSL SSL/p>
-<p>Function used:</p>
-<p>tep_href_link('$page', '$parameters', '$connection')</p>
-EOERROR
-);
-    }
-    if ($parameters == '') {
-      $link .= $page;
-    } else {
-      $link .= $page . '?' . $parameters;
+    $link = HTTP_CATALOG_SERVER . DIR_WS_CATALOG . $page;
+
+    if ('' !== $parameters) {
+      $link .= '?' . $parameters;
     }
 
-    while ( (substr($link, -1) == '&') || (substr($link, -1) == '?') ) $link = substr($link, 0, -1);
-
-    return $link;
+    return rtrim($link, '&?');
   }
 
 ////
@@ -144,21 +100,23 @@ EOERROR
 // Draw a 1 pixel black line
 // DEPRECATE THIS ASAP
   function tep_black_line() {
-    return tep_image('images/pixel_black.gif', '', '100%', '1', null, false);
+    return null;
+    //return tep_image('images/pixel_black.gif', '', '100%', '1', null, false);
   }
 
 ////
 // Output a separator either through whitespace, or with an image
 // DEPRECATE THIS ASAP
   function tep_draw_separator($image = 'pixel_black.gif', $width = '100%', $height = '1') {
-    return tep_image('images/' . $image, '', $width, $height, null, false);
+    return null;
+    //return tep_image('images/' . $image, '', $width, $height, null, false);
   }
 
 ////
 // javascript to dynamically update the states/provinces list when the country is changed
 // TABLES: zones
   function tep_js_zone_list($country, $form, $field) {
-    $countries_query = tep_db_query("select distinct zone_country_id from " . TABLE_ZONES . " order by zone_country_id");
+    $countries_query = tep_db_query("select distinct zone_country_id from zones order by zone_country_id");
     $num_country = 1;
     $output_string = '';
     while ($countries = tep_db_fetch_array($countries_query)) {
@@ -168,7 +126,7 @@ EOERROR
         $output_string .= '  } else if (' . $country . ' == "' . $countries['zone_country_id'] . '") {' . "\n";
       }
 
-      $states_query = tep_db_query("select zone_name, zone_id from " . TABLE_ZONES . " where zone_country_id = '" . $countries['zone_country_id'] . "' order by zone_name");
+      $states_query = tep_db_query("select zone_name, zone_id from zones where zone_country_id = '" . $countries['zone_country_id'] . "' order by zone_name");
 
       $num_state = 1;
       while ($states = tep_db_fetch_array($states_query)) {
@@ -220,7 +178,7 @@ EOERROR
     }
 
     if (tep_not_null($parameters)) $field .= " $parameters";
-    if (tep_not_null($class)) $field .= " $class";
+    if (tep_not_null($class) && (false === strpos($parameters, 'class="'))) $field .= " $class";
 
     $field .= ' />';
 
@@ -271,17 +229,18 @@ EOERROR
 ////
 // Output a form textarea field
 // The $wrap parameter is no longer used in the core xhtml template
-  function tep_draw_textarea_field($name, $wrap, $width, $height, $text = '', $parameters = '', $reinsert_value = true) {
-    $field = '<textarea class="form-control" name="' . tep_output_string($name) . '" cols="' . tep_output_string($width) . '" rows="' . tep_output_string($height) . '"';
+  function tep_draw_textarea_field($name, $wrap, $width, $height, $text = '', $parameters = '', $reinsert_value = true, $class = 'class="form-control"') {
+    $field = '<textarea name="' . tep_output_string($name) . '" cols="' . tep_output_string($width) . '" rows="' . tep_output_string($height) . '"';
 
-    if (tep_not_null($parameters)) $field .= ' ' . $parameters;
+    if (tep_not_null($parameters)) $field .= " $parameters";
+    if (tep_not_null($class) && (false === strpos($parameters, 'class="'))) $field .= " $class";
 
     $field .= '>';
 
     if ( $reinsert_value && is_string($requested_value = $_GET[$name] ?? $_POST[$name] ?? null) ) {
-      $field .= tep_output_string_protected(stripslashes($requested_value));
+      $field .= htmlspecialchars(stripslashes($requested_value));
     } elseif (tep_not_null($text)) {
-      $field .= tep_output_string_protected($text);
+      $field .= htmlspecialchars($text);
     }
 
     $field .= '</textarea>';
@@ -383,7 +342,7 @@ EOERROR
       $button .= '<a id="tdb' . $button_counter . '" href="' . $link . '"';
 
       if ( isset($params['newwindow']) ) {
-        $button .= ' target="_blank"';
+        $button .= ' target="_blank" rel="noreferrer"';
       }
     } else {
       $button .= '<button id="tdb' . $button_counter . '" type="' . tep_output_string($params['type']) . '"';
@@ -447,7 +406,7 @@ EOERROR
       $button = '<a href="' . $link . '"';
 
       if ( isset($params['newwindow']) ) {
-        $button .= ' target="_blank" rel="noopener"';
+        $button .= ' target="_blank" rel="noreferrer"';
       }
       $closing_tag = '</a>';
     } else {

@@ -34,7 +34,7 @@
         ],
         static::CONFIG_KEY_BASE . 'PAGES' => [
           'title' => 'Pages',
-          'value' => 'account_password',
+          'value' => 'account_password;create_account;customers',
           'desc' => 'On what pages should this appear?',
           'set_func' => 'tep_draw_account_edit_pages(',
           'use_func' => 'abstract_module::list_exploded',
@@ -57,18 +57,18 @@
 
       $input_id = 'inputPassword';
       if ('customers.php' === $GLOBALS['PHP_SELF']) {
-        $attribute = 'id="' . $input_id . '"';
+        $attribute = 'id="' . $input_id . '" autocapitalize="none"';
         $post_input = '';
       } else {
         $attribute = self::REQUIRED_ATTRIBUTE . 'id="' . $input_id
-                   . '" autocomplete="new-password" placeholder="' . ENTRY_PASSWORD_CONFIRMATION_TEXT . '"';
+                   . '" autocapitalize="none" autocomplete="new-password" placeholder="' . ENTRY_PASSWORD_CONFIRMATION_TEXT . '"';
         $post_input = FORM_REQUIRED_INPUT;
       }
 
       $input = tep_draw_input_field('password_confirmation', null, $attribute, 'password')
              . $post_input;
 
-      include $GLOBALS['oscTemplate']->map_to_template(MODULE_CUSTOMER_DATA_PASSWORD_CONFIRMATION_TEMPLATE);
+      include $GLOBALS['oscTemplate']->map_to_template($this->base_constant('TEMPLATE'));
     }
 
     public function process(&$customer_details, $entry_base = 'ENTRY_PASSWORD') {

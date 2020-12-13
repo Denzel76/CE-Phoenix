@@ -24,11 +24,11 @@
     }
 
     function getSetField() {
-      global $OSCOM_PayPal, $languages_id;
+      global $OSCOM_PayPal;
 
       $statuses_array = array(array('id' => '0', 'text' => $OSCOM_PayPal->getDef('cfg_hs_order_status_id_default')));
 
-      $statuses_query = tep_db_query("select orders_status_id, orders_status_name from orders_status where language_id = '" . (int)$languages_id . "' order by orders_status_name");
+      $statuses_query = tep_db_query("select orders_status_id, orders_status_name from orders_status where language_id = '" . (int)$_SESSION['languages_id'] . "' order by orders_status_name");
       while ($statuses = tep_db_fetch_array($statuses_query)) {
         $statuses_array[] = array('id' => $statuses['orders_status_id'],
                                   'text' => $statuses['orders_status_name']);
@@ -37,17 +37,10 @@
       $input = tep_draw_pull_down_menu('order_status_id', $statuses_array, OSCOM_APP_PAYPAL_HS_ORDER_STATUS_ID, 'id="inputHsOrderStatusId"');
 
       $result = <<<EOT
-<div>
-  <p>
-    <label for="inputHsOrderStatusId">{$this->title}</label>
+<h5>{$this->title}</h5>
+<p>{$this->description}</p>
 
-    {$this->description}
-  </p>
-
-  <div>
-    {$input}
-  </div>
-</div>
+<div class="mb-3">{$input}</div>
 EOT;
 
       return $result;

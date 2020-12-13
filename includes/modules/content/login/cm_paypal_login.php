@@ -56,14 +56,14 @@
         }
 
         if ( !function_exists('curl_init') ) {
-          $this->description .= '<div class="secWarning">' . $this->_app->getDef('module_login_error_curl') . '</div>';
+          $this->description .= '<div class="alert alert-warning">' . $this->_app->getDef('module_login_error_curl') . '</div>';
 
           $this->enabled = false;
         }
 
         if ( $this->enabled === true ) {
           if ( ((OSCOM_APP_PAYPAL_LOGIN_STATUS == '1') && (!tep_not_null(OSCOM_APP_PAYPAL_LOGIN_LIVE_CLIENT_ID) || !tep_not_null(OSCOM_APP_PAYPAL_LOGIN_LIVE_SECRET))) || ((OSCOM_APP_PAYPAL_LOGIN_STATUS == '0') && (!tep_not_null(OSCOM_APP_PAYPAL_LOGIN_SANDBOX_CLIENT_ID) || !tep_not_null(OSCOM_APP_PAYPAL_LOGIN_SANDBOX_SECRET))) ) {
-            $this->description .= '<div class="secWarning">' . $this->_app->getDef('module_login_error_credentials') . '</div>';
+            $this->description .= '<div class="alert alert-warning">' . $this->_app->getDef('module_login_error_credentials') . '</div>';
 
             $this->enabled = false;
           }
@@ -98,7 +98,7 @@
 
     function guarantee_address($customer_id, $address) {
       $address['id'] = $customer_id;
-      $check_query = tep_db_query($GLOBALS['customer_data']->build_read(['address_book_id'], 'address_book', $address) . "' LIMIT 1");
+      $check_query = tep_db_query($GLOBALS['customer_data']->build_read(['address_book_id'], 'address_book', $address) . " LIMIT 1");
       if ($check = tep_db_fetch_array($check_query)) {
         $_SESSION['sendto'] = $check['address_book_id'];
       } else {
@@ -112,7 +112,7 @@
       $return_url = tep_href_link('login.php', '', 'SSL');
 
       if ( isset($_GET['code']) ) {
-        $GLOBALS['paypal_login_customer_id'] = false;
+        $_SESSION['paypal_login_customer_id'] = false;
 
         $params = [
           'code' => $_GET['code'],
@@ -212,13 +212,11 @@
     }
 
     function postLogin() {
-      if ( isset($_SESSION['paypal_login_customer_id']) ) {
-        if ( false !== $_SESSION['paypal_login_customer_id'] ) {
-          $GLOBALS['login_customer_id'] = $_SESSION['paypal_login_customer_id'];
-        }
-
-        unset($_SESSION['paypal_login_customer_id']);
+      if ( false !== ($_SESSION['paypal_login_customer_id'] ?? false) ) {
+        $GLOBALS['login_customer_id'] = $_SESSION['paypal_login_customer_id'];
       }
+
+      unset($_SESSION['paypal_login_customer_id']);
 
 // Register PayPal Express Checkout as the default payment method
       if ( 'paypal_express' !== ($_SESSION['payment'] ?? null) ) {
