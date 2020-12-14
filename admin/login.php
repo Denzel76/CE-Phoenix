@@ -34,7 +34,7 @@
           $username = tep_db_prepare_input($_POST['username']);
           $password = tep_db_prepare_input($_POST['password']);
         }
-
+        
         $actionRecorder = new actionRecorderAdmin('ar_admin_login', null, $username);
 
         if ($actionRecorder->canPerform() || (!defined('MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES'))) {
@@ -54,7 +54,7 @@
                 'username' => $check['user_name'],
               ];
 
-              if (defined('MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES')) {
+              if (defined('MODULE_ACTION_RECORDER_ADMIN_LOGGING_TYPE') && (MODULE_ACTION_RECORDER_ADMIN_LOGGING_TYPE == 'all')) {
                 $actionRecorder->_user_id = $_SESSION['admin']['id'];
                 $actionRecorder->record();
               }
@@ -78,12 +78,12 @@
         } else {
           $messageStack->add(sprintf(ERROR_ACTION_RECORDER, (int)MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES));
         }
-
-        if (isset($_POST['username']) && (defined('MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES'))) {
+        
+        if (isset($_POST['username']) && (defined('MODULE_ACTION_RECORDER_ADMIN_LOGIN_MINUTES')) && (MODULE_ACTION_RECORDER_ADMIN_LOGGING_TYPE == 'all' || MODULE_ACTION_RECORDER_ADMIN_LOGGING_TYPE == 'failed attempts')) {
           $actionRecorder->record(false);
         }
 
-        $OSCOM_Hooks->call('login', 'processAction');
+       $OSCOM_Hooks->call('login', 'processAction');
 
         break;
 
